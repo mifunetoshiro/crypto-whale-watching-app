@@ -7,7 +7,7 @@ import dash
 
 from dash.dependencies import Output, Event
 from math import log10, floor
-from datetime import datetime
+from datetime import datetime, timedelta
 from random import randint
 import dash_core_components as dcc
 import dash_html_components as html
@@ -380,6 +380,10 @@ def prepare_data(ticker, exchange):
                       shape_ask[combined]['unique'].max()])
     width_factor = 15 / max_unique
     market_price = marketPrice[combined]
+    td = datetime.now() - timedelta(days=1) 
+    phr = gdax.PublicClient().get_product_historic_rates(ticker, start=td.isoformat(), end=datetime.now().isoformat(), granularity=300)
+    yday_price = phr[288][4] #288 is exactly 24h ago, 12 is 1 hour ago
+    prct_day = ((market_price - yday_price) / yday_price) * 100
     bid_trace = go.Scatter(
         x=[], y=[],
         text=[],
@@ -447,6 +451,16 @@ def prepare_data(ticker, exchange):
         ask_trace['x'].append(vol)
         ask_trace['y'].append(row['max_Price'])
         ask_trace['text'].append(row['text'])
+        shape_arr.append(dict(type='line',
+                              opacity=0.5,
+                              x0=x_min, y0=yday_price,
+                              x1=x_max, y1=yday_price,
+                              line=dict(color='rgb(128, 128, 128)', width=1, dash='dash')))
+        annot_arr.append(dict(
+                              x=log10(x_max), y=yday_price, xref='x', yref='y',
+                              text="24h ago: " + str(round(yday_price, 4)) + symbol,
+                              showarrow=True, arrowhead=7, ax=20, ay=0,
+                              font={'color': '#ffffff'}))
     result = {
         'data': [
             go.Scatter(
@@ -465,10 +479,11 @@ def prepare_data(ticker, exchange):
         ],
         'layout': go.Layout(
             # title automatically updates with refreshed market price
-            title=("The present market price of {} on {} is: {}{} at {}".format(ticker, exchange, symbol,
+            title=("The present market price of {} on {} is: {}{} at {}. 24h ago: {}{}, change: {}{} ({}%)".format(ticker, exchange, symbol,
                                                                                 str(
                                                                                     marketPrice[combined]),
-                                                                                timeStamps[combined])),
+                                                                                timeStamps[combined], symbol, round(yday_price, 4), symbol, round((marketPrice[combined] - yday_price), 4), round(prct_day, 2))),
+            font=dict(family='Courier New, monospace', size=11),
             xaxis=dict(title='Order Size', type='log', autorange=True),
             yaxis={'title': '{} Price'.format(ticker)},
             hovermode='closest',
