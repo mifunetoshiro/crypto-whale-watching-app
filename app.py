@@ -6,7 +6,7 @@
 import dash
 
 from dash.dependencies import Output, Event
-from math import log10, floor
+from math import log10, floor, isnan
 from datetime import datetime, timedelta
 from random import randint
 import dash_core_components as dcc
@@ -34,6 +34,7 @@ desiredPairRefresh = 30000  # (in ms) The lower it is, the better is it regardin
 js_extern = "https://cdn.rawgit.com/pmaji/crypto-whale-watching-app/master/main.js"
 noDouble = True  # if activatet each order is in case of beeing part of a ladder just shown once (just as a bubble, not as a ladder)
 SYMBOLS = {"USD": "$", "BTC": "₿", "EUR": "€", "GBP": "£"} # used for the tooltip
+SIGNIFICANT = {"USD": 2, "BTC": 5, "EUR": 2, "GBP": 2} # used for rounding
 TBL_PRICE = 'price'
 TBL_VOLUME = 'volume'
 tables = {}
@@ -130,6 +131,7 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=30):
     # Determine what currencies we're working with to make the tool tip more dynamic.
     currency = ticker.split("-")[0]
     base_currency = ticker.split("-")[1]
+    sig_use = SIGNIFICANT.get(base_currency.upper(), 2)
     symbol = SYMBOLS.get(base_currency.upper(), "")
     try:
         first_ask = float(ask_tbl.iloc[1, 0])
@@ -193,7 +195,7 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=30):
     # Get Market Price
     try:
         mp = round_sig((ask_tbl[TBL_PRICE].iloc[0] +
-                        bid_tbl[TBL_PRICE].iloc[0]) / 2.0, 3, 0, 2)
+                        bid_tbl[TBL_PRICE].iloc[0]) / 2.0, 3, 0, sig_use)
     except (IndexError):
         print("Empty data for " + combined + " Will wait 3s")
         time.sleep(3)
@@ -217,11 +219,9 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=30):
 
     final_tbl = final_tbl[(final_tbl['n_unique_orders'] <= 20.0)]
     final_tbl[TBL_PRICE] = final_tbl.index
-    final_tbl[TBL_PRICE] = final_tbl[TBL_PRICE].apply(
-        round_sig, args=(3, 0, 2))
+    final_tbl[TBL_PRICE] = final_tbl[TBL_PRICE].apply(round_sig, args=(3, 0, sig_use))
     final_tbl[TBL_VOLUME] = final_tbl[TBL_VOLUME].apply(round_sig, args=(1, 2))
-    final_tbl['n_unique_orders'] = final_tbl['n_unique_orders'].apply(
-        round_sig, args=(0,))
+    final_tbl['n_unique_orders'] = final_tbl['n_unique_orders'].apply(round_sig, args=(0,))
     final_tbl['sqrt'] = np.sqrt(final_tbl[TBL_VOLUME])
     final_tbl['total_price'] = (((final_tbl['volume'] * final_tbl['price']).round(2)).apply(lambda x: "{:,}".format(x)))
 
@@ -240,8 +240,8 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=30):
         {TBL_PRICE: [np.min, np.max, 'count'], TBL_VOLUME: np.sum, 'total_price': np.sum})
 
     # Rename column names for Volume Grouping
-    vol_grp_bid.columns = ['min_Price', 'max_Price', 'count', 'volume', 'total_price']
-    vol_grp_ask.columns = ['min_Price', 'max_Price', 'count', 'volume', 'total_price']
+    vol_grp_bid.columns = ['min_Price', 'max_Price', 'count', TBL_VOLUME, 'total_price']
+    vol_grp_ask.columns = ['min_Price', 'max_Price', 'count', TBL_VOLUME, 'total_price']
 
     # Filter data by min Volume, more than 1 (intefere with bubble), less than 70 (mostly 1 or 0.5 ETH humans)
     vol_grp_bid = vol_grp_bid[
@@ -254,22 +254,22 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=30):
     vol_grp_ask['unique'] = vol_grp_ask.index.get_level_values(TBL_VOLUME)
 
     # Round the size of order
-    vol_grp_bid['unique'] = vol_grp_bid['unique'].apply(round_sig, args=(3, 0, 2))
-    vol_grp_ask['unique'] = vol_grp_ask['unique'].apply(round_sig, args=(3, 0, 2))
+    vol_grp_bid['unique'] = vol_grp_bid['unique'].apply(round_sig, args=(3, 0, sig_use))
+    vol_grp_ask['unique'] = vol_grp_ask['unique'].apply(round_sig, args=(3, 0, sig_use))
 
     # Round the Volume
-    vol_grp_bid[TBL_VOLUME] = vol_grp_bid[TBL_VOLUME].apply(round_sig, args=(1, 0, 2))
-    vol_grp_ask[TBL_VOLUME] = vol_grp_ask[TBL_VOLUME].apply(round_sig, args=(1, 0, 2))
+    vol_grp_bid[TBL_VOLUME] = vol_grp_bid[TBL_VOLUME].apply(round_sig, args=(1, 0, sig_use))
+    vol_grp_ask[TBL_VOLUME] = vol_grp_ask[TBL_VOLUME].apply(round_sig, args=(1, 0, sig_use))
 
     # Round the Min/ Max Price
-    vol_grp_bid['min_Price'] = vol_grp_bid['min_Price'].apply(round_sig, args=(3, 0, 2))
-    vol_grp_ask['min_Price'] = vol_grp_ask['min_Price'].apply(round_sig, args=(3, 0, 2))
-    vol_grp_bid['max_Price'] = vol_grp_bid['max_Price'].apply(round_sig, args=(3, 0, 2))
-    vol_grp_ask['max_Price'] = vol_grp_ask['max_Price'].apply(round_sig, args=(3, 0, 2))
+    vol_grp_bid['min_Price'] = vol_grp_bid['min_Price'].apply(round_sig, args=(3, 0, sig_use))
+    vol_grp_ask['min_Price'] = vol_grp_ask['min_Price'].apply(round_sig, args=(3, 0, sig_use))
+    vol_grp_bid['max_Price'] = vol_grp_bid['max_Price'].apply(round_sig, args=(3, 0, sig_use))
+    vol_grp_ask['max_Price'] = vol_grp_ask['max_Price'].apply(round_sig, args=(3, 0, sig_use))
 
     # Round and format the Total Price
-    vol_grp_bid['total_price'] = (vol_grp_bid['total_price'].round(2).apply(lambda x: "{:,}".format(x)))
-    vol_grp_ask['total_price'] = (vol_grp_ask['total_price'].round(2).apply(lambda x: "{:,}".format(x)))
+    vol_grp_bid['total_price'] = (vol_grp_bid['total_price'].round(sig_use).apply(lambda x: "{:,}".format(x)))
+    vol_grp_ask['total_price'] = (vol_grp_ask['total_price'].round(sig_use).apply(lambda x: "{:,}".format(x)))
 
     # Append individual text to each element
     vol_grp_bid['text'] = ("There are " + vol_grp_bid['count'].map(str) + " orders " + vol_grp_bid['unique'].map(
@@ -371,19 +371,32 @@ def prepare_data(ticker, exchange):
     data = get_data_cache(combined)
     pair.newData = False
     base_currency = ticker.split("-")[1]
+
+    #Get Minimum and Maximum
+    ladder_Bid_Min = fixNan(shape_bid[combined]['volume'].min())
+    ladder_Bid_Max = fixNan(shape_bid[combined]['volume'].max(), False)
+    ladder_Ask_Min = fixNan(shape_ask[combined]['volume'].min())
+    ladder_Ask_Max = fixNan(shape_ask[combined]['volume'].max(), False)
+    data_min = fixNan(data[TBL_VOLUME].min())
+    data_max = fixNan(data[TBL_VOLUME].max(), False)
+
     symbol = SYMBOLS.get(base_currency.upper(), "")
-    x_min = min([shape_bid[combined]['volume'].min(),
-                 shape_ask[combined]['volume'].min(), data[TBL_VOLUME].min()])
-    x_max = max([shape_bid[combined]['volume'].max(),
-                 shape_ask[combined]['volume'].max(), data[TBL_VOLUME].max()])
-    max_unique = max([shape_bid[combined]['unique'].max(),
-                      shape_ask[combined]['unique'].max()])
-    width_factor = 15 / max_unique
+    x_min = min([ladder_Bid_Min, ladder_Ask_Min, data_min])
+    x_max = max([ladder_Bid_Max, ladder_Ask_Max, data_max])
+    max_unique = max([fixNan(shape_bid[combined]['unique'].max(), False),
+                      fixNan(shape_ask[combined]['unique'].max(), False)])
+    if max_unique > 0: width_factor = 15 / max_unique
     market_price = marketPrice[combined]
     td = datetime.now() - timedelta(days=1) 
     phr = gdax.PublicClient().get_product_historic_rates(ticker, start=td.isoformat(), end=datetime.now().isoformat(), granularity=300)
     yday_price = phr[288][4] #288 is exactly 24h ago, 12 is 1 hour ago
+    twelvehoursago_price = phr[144][4]
+    sixhoursago_price = phr[72][4]
+    onehourago_price = phr[12][4]
     prct_day = ((market_price - yday_price) / yday_price) * 100
+    prct_twelve = ((market_price - twelvehoursago_price) / twelvehoursago_price) * 100
+    prct_six = ((market_price - sixhoursago_price) / sixhoursago_price) * 100
+    prct_hour = ((market_price - onehourago_price) / onehourago_price) * 100
     bid_trace = go.Scatter(
         x=[], y=[],
         text=[],
@@ -402,11 +415,21 @@ def prepare_data(ticker, exchange):
         line=dict(color='rgb(0, 0, 0)', width=2, dash='dash')
     )]
     annot_arr = [dict(
-        x=log10(x_max), y=market_price, xref='x', yref='y',
+        x=log10((x_max*0.9)), y=market_price, xref='x', yref='y',
         text=str(market_price) + symbol,
         showarrow=True, arrowhead=7, ax=20, ay=0,
         bgcolor='rgb(0,0,255)', font={'color': '#ffffff'}
     )]
+    shape_arr.append(dict(type='rect',
+                          x0=x_min-((x_min*6)/100), y0=market_price,
+                          x1=x_max+((x_max*6)/100), y1=market_price+((market_price*6)/100),
+                          line=dict(color='rgb(255, 0, 0)', width=0.01),
+                          fillcolor='rgba(255, 0, 0, 0.04)'))
+    shape_arr.append(dict(type='rect',
+                          x0=x_min-((x_min*6)/100), y0=market_price,
+                          x1=x_max+((x_max*6)/100), y1=market_price-((market_price*6)/100),
+                          line=dict(color='rgb(0, 255, 0)', width=0.01),
+                          fillcolor='rgba(0, 255, 0, 0.04)'))
     for index, row in shape_bid[combined].iterrows():
         cWidth = row['unique'] * width_factor
         vol = row[TBL_VOLUME]
@@ -451,16 +474,74 @@ def prepare_data(ticker, exchange):
         ask_trace['x'].append(vol)
         ask_trace['y'].append(row['max_Price'])
         ask_trace['text'].append(row['text'])
-        shape_arr.append(dict(type='line',
-                              opacity=0.5,
-                              x0=x_min, y0=yday_price,
-                              x1=x_max, y1=yday_price,
-                              line=dict(color='rgb(128, 128, 128)', width=1, dash='dash')))
-        annot_arr.append(dict(
-                              x=log10(x_max), y=yday_price, xref='x', yref='y',
-                              text="24h ago: " + str(round(yday_price, 4)) + symbol,
-                              showarrow=True, arrowhead=7, ax=20, ay=0,
-                              font={'color': '#ffffff'}))
+    yday_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=yday_price,
+                           x1=x_max, y1=yday_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    yday_price_ann=[dict(
+                          x=x_max-((x_max*6)/100), y=yday_price, xref='x', yref='y',
+                          text="24h ago: " + symbol + str(round(yday_price, 5)) + " " + symbol + str(round((marketPrice[combined] - yday_price), 5)) +  " (" + str(round(prct_day, 2)) + "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    twelvehoursago_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=twelvehoursago_price,
+                           x1=x_max, y1=twelvehoursago_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    twelvehoursago_price_ann=[dict(
+                          x=log10(x_max), y=twelvehoursago_price, xref='x', yref='y',
+                          text="12h ago: " + symbol + str(round(twelvehoursago_price, 5)) + " " + symbol + str(round((marketPrice[combined] - twelvehoursago_price), 5)) +  " (" + str(round(prct_twelve, 2)) + "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    sixhoursago_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=sixhoursago_price,
+                           x1=x_max, y1=sixhoursago_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    sixhoursago_price_ann=[dict(
+                          x=log10(x_max), y=sixhoursago_price, xref='x', yref='y',
+                          text="6h ago: " + symbol + str(round(sixhoursago_price, 5)) + " " + symbol + str(round((marketPrice[combined] - sixhoursago_price), 5)) +  " (" + str(round(prct_six, 2)) + "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    onehourago_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=onehourago_price,
+                           x1=x_max, y1=onehourago_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    onehourago_price_ann=[dict(
+                          x=log10(x_max), y=onehourago_price, xref='x', yref='y',
+                          text="1h ago: " + symbol + str(round(onehourago_price, 5)) + " " + symbol + str(round((marketPrice[combined] - onehourago_price), 5)) + " (" + str(round(prct_hour, 2))+ "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    updatemenus = list([
+        dict(type="buttons",
+             active=-1,
+             buttons=list([   
+    
+                dict(label = 'Yesterday price',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+yday_price_ann,
+                             'shapes': shape_arr+yday_price_shape}]),
+                dict(label = '12 ago price',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+twelvehoursago_price_ann,
+                             'shapes': shape_arr+twelvehoursago_price_shape}]),
+                dict(label = '6h ago price',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+sixhoursago_price_ann,
+                             'shapes': shape_arr+sixhoursago_price_shape}]),
+                dict(label = '1h ago price',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+onehourago_price_ann,
+                             'shapes': shape_arr+onehourago_price_shape}]),
+                dict(label = 'Reset',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr,
+                             'shapes': shape_arr}])
+            ]),
+        )
+    ])
     result = {
         'data': [
             go.Scatter(
@@ -479,11 +560,10 @@ def prepare_data(ticker, exchange):
         ],
         'layout': go.Layout(
             # title automatically updates with refreshed market price
-            title=("The present market price of {} on {} is: {}{} at {}. 24h ago: {}{}, change: {}{} ({}%)".format(ticker, exchange, symbol,
+            title=("The present market price of {} on {} is: {}{} at {}".format(ticker, exchange, symbol,
                                                                                 str(
                                                                                     marketPrice[combined]),
-                                                                                timeStamps[combined], symbol, round(yday_price, 4), symbol, round((marketPrice[combined] - yday_price), 4), round(prct_day, 2))),
-            font=dict(family='Courier New, monospace', size=11),
+                                                                                timeStamps[combined])),
             xaxis=dict(title='Order Size', type='log', autorange=True),
             yaxis={'title': '{} Price'.format(ticker)},
             hovermode='closest',
@@ -492,12 +572,13 @@ def prepare_data(ticker, exchange):
                 l=75, r=75,
                 b=50, t=50,
                 pad=4),
-            paper_bgcolor='#c7c7c7',
-            plot_bgcolor='#c7c7c7',
+            paper_bgcolor='#F5F5F5',
+            plot_bgcolor='#F5F5F5',
             # adding the horizontal reference line at market price
             shapes=shape_arr,
             annotations=annot_arr,
-            showlegend=False
+            showlegend=False,
+            updatemenus=updatemenus
         )
     }
     return result
@@ -552,6 +633,14 @@ def calcColor(x):
         response = 30
     return response
 
+def fixNan(x, pMin=True):
+    if isnan(x):
+      if pMin:
+         return 99999
+      else:
+         return 0
+    else:
+      return x
 
 def getStamp():
     return int(round(time.time() * 1000))
