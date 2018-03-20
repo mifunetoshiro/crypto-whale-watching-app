@@ -6,7 +6,7 @@
 import dash
 from dash.dependencies import Output, Event
 from math import log10, floor, isnan
-from datetime import datetime
+from datetime import datetime, timedelta
 from random import randint
 import dash_core_components as dcc
 import dash_html_components as html
@@ -84,10 +84,7 @@ class Pair:
 
 
 PAIRS = []  # Array containing all pairs
-E_GDAX = Exchange("GDAX", ["ETH-USD", "ETH-EUR", "ETH-BTC",
-                           "BTC-USD", "BTC-EUR", "BTC-GBP",
-                           "LTC-USD", "LTC-EUR", "LTC-BTC",
-                           "BCH-USD", "BCH-EUR", "BCH-BTC"], 0)
+E_GDAX = Exchange("GDAX", ["ETH-USD", "ETH-EUR", "ETH-BTC", "BTC-USD"], 0)
 for ticker in E_GDAX.ticker:
     cObj = Pair(E_GDAX.name, ticker)
     PAIRS.append(cObj)
@@ -164,6 +161,10 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=60):
     bid_tbl[TBL_VOLUME] = pd.to_numeric(bid_tbl[TBL_VOLUME])
     ask_tbl[TBL_VOLUME] = pd.to_numeric(ask_tbl[TBL_VOLUME])
 
+    # add total_price column
+    bid_tbl['total_price'] = bid_tbl['volume'] * bid_tbl['price']
+    ask_tbl['total_price'] = ask_tbl['volume'] * ask_tbl['price']
+
     # prepare everything for depchart
     ob_step = (perc_above_first_ask - first_ask) / ob_points
     ob_ask = pd.DataFrame(columns=[TBL_PRICE, TBL_VOLUME, 'address', 'text'])
@@ -177,6 +178,8 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=60):
     current_bid_volume = 0
     current_ask_adresses = 0
     current_bid_adresses = 0
+    current_ask_price = 0
+    current_bid_price = 0
     while i < ob_points:
         # Get Borders for ask/ bid
         current_ask_border = first_ask + (i * ob_step)
@@ -194,11 +197,17 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=60):
         current_bid_adresses += bid_tbl.loc[
             (bid_tbl[TBL_PRICE] <= last_bid) & (bid_tbl[TBL_PRICE] > current_bid_border), 'address'].count()
 
+        # Get Total Price
+        current_ask_price += ask_tbl.loc[
+            (ask_tbl[TBL_PRICE] >= last_ask) & (ask_tbl[TBL_PRICE] < current_ask_border), 'total_price'].sum()
+        current_bid_price += bid_tbl.loc[
+            (bid_tbl[TBL_PRICE] <= last_bid) & (bid_tbl[TBL_PRICE] > current_bid_border), 'total_price'].sum()
+
         # Prepare Text
-        ask_text = (str(round_sig(current_ask_volume, 3, 0, sig_use)) + currency + " (from " + str(current_ask_adresses) +
-                     " orders) up to " + str(round_sig(current_ask_border, 3, 0, sig_use)) + symbol)
-        bid_text = (str(round_sig(current_bid_volume, 3, 0, sig_use)) + currency + " (from " + str(current_bid_adresses) +
-                     " orders) down to " + str(round_sig(current_bid_border, 3, 0, sig_use)) + symbol)
+        ask_text = (str(round_sig(current_ask_volume, 3, 0, sig_use)) + " " + currency + " (from " + str(current_ask_adresses) +
+                     " orders) up to " + str(round_sig(current_ask_border, 3, 0, sig_use)) + symbol + " worth " + str("{:,}".format(round_sig(current_ask_price, 3, 0, sig_use))) + symbol)
+        bid_text = (str(round_sig(current_bid_volume, 3, 0, sig_use)) + " " + currency + " (from " + str(current_bid_adresses) +
+                     " orders) down to " + str(round_sig(current_bid_border, 3, 0, sig_use)) + symbol + " worth " + str("{:,}".format(round_sig(current_bid_price, 3, 0, sig_use))) + symbol)
 
         # Save Data
         ob_ask.loc[i - 1] = [current_ask_border, current_ask_volume, current_ask_adresses, ask_text]
@@ -409,6 +418,13 @@ def prepare_data(ticker, exchange):
     width_factor = 15
     if max_unique > 0: width_factor = 15 / max_unique
     market_price = marketPrice[combined]
+
+    td = datetime.now() - timedelta(days=1)
+    phr = gdax.PublicClient().get_product_historic_rates(ticker, start=td.isoformat(), end=datetime.now().isoformat(), granularity=300)
+    yday_price = phr[288][4] #288 is exactly 24h ago, 12 is 1 hour ago
+    prct_day = ((market_price - yday_price) / yday_price) * 100
+    onehourago_price = phr[12][4]
+    prct_hour = ((market_price - onehourago_price) / onehourago_price) * 100
     bid_trace = go.Scatter(
         x=[], y=[],
         text=[],
@@ -487,6 +503,46 @@ def prepare_data(ticker, exchange):
         ask_trace['x'].append(vol)
         ask_trace['y'].append(row['max_Price'])
         ask_trace['text'].append(row['text'])
+    yday_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=yday_price,
+                           x1=x_max, y1=yday_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    yday_price_ann=[dict(
+                          x=log10((x_max*0.7)), y=yday_price, xref='x', yref='y',
+                          text="24h ago: " + symbol + str(round(yday_price, 5)) + " " + symbol + str(round((marketPrice[combined] - yday_price), 5)) +  " (" + str(round(prct_day, 2)) + "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    onehourago_price_shape = [dict(
+                           type='line',
+                           x0=x_min, y0=onehourago_price,
+                           x1=x_max, y1=onehourago_price,
+                           line=dict(color='rgb(128, 128, 128)', width=1, dash='dash'))]
+    onehourago_price_ann=[dict(
+                          x=log10((x_max*0.7)), y=onehourago_price, xref='x', yref='y',
+                          text="1h ago: " + symbol + str(round(onehourago_price, 5)) + " " + symbol + str(round((marketPrice[combined] - onehourago_price), 5)) + " (" + str(round(prct_hour, 2))+ "%)",
+                          showarrow=True, arrowhead=7, ax=20, ay=0,
+                          font={'color': '#000000'})]
+    updatemenus = list([
+        dict(type="buttons",
+             active=-1,
+             buttons=list([   
+    
+                dict(label = '24h ago',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+yday_price_ann,
+                             'shapes': shape_arr+yday_price_shape}]),
+                dict(label = '1h ago',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr+onehourago_price_ann,
+                             'shapes': shape_arr+onehourago_price_shape}]),
+                dict(label = 'Reset',
+                     method = 'relayout',
+                     args = [{'annotations': annot_arr,
+                             'shapes': shape_arr}])
+            ]),
+        )
+    ])
     result = {
         'data': [
             go.Scatter(
@@ -523,10 +579,10 @@ def prepare_data(ticker, exchange):
         ],
         'layout': go.Layout(
             # title automatically updates with refreshed market price
-            title=("The present market price of {} on {} is: {}{} at {}".format(ticker, exchange, symbol,
-                                                                                str(
-                                                                                    marketPrice[combined]),
-                                                                                timeStamps[combined])),
+            title=("The present market price of {} on {} is: {}{} at {}. 24h ago: {}{}, change: {}{} ({}%)".format(ticker, exchange, symbol,
+                   str(marketPrice[combined]),
+                   timeStamps[combined], symbol, round(yday_price, 4), symbol, round((marketPrice[combined] - yday_price), 4), round(prct_day, 2))),
+            font=dict(family='Courier New, monospace', size=11),
             xaxis=dict(title='Order Size', type='log', autotick=True,range=[log10(x_min*0.95), log10(x_max*1.03)]),
             yaxis={'title': '{} Price'.format(ticker),'range':[market_price*0.94, market_price*1.06]},
             hovermode='closest',
@@ -540,7 +596,8 @@ def prepare_data(ticker, exchange):
             # adding the horizontal reference line at market price
             shapes=shape_arr,
             annotations=annot_arr,
-            showlegend=False
+            showlegend=False,
+            updatemenus=updatemenus
         )
     }
     return result
