@@ -14,7 +14,7 @@ import dash_html_components as html
 # non-dash-related libraries
 import plotly.graph_objs as go
 import pandas as pd
-import gdax
+import cbpro
 import numpy as np
 
 # modules added by contributors
