@@ -68,7 +68,7 @@ Once its finished type:
 
 > python app.py
 
-Then open up your broswer and type in the set of numbers that pop up in terminal, which should look similar to "127.0.0.1:8050".
+Then open up your broswer and go to http://127.0.0.1:8050/.
 
 ## Contribution Rules
 
