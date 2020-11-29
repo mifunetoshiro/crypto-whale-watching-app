@@ -1,13 +1,15 @@
 ## Introduction
 
-Welcome! This is a Python-based Dash app meant to track whale activity in buy / sell walls on crypto-currency exchanges (presently just operational for GDAX, but more exchanges to come). This document aims to explain the purpose, functionality, and future of this project. Please do share this with your fellow coders / traders / crypto-aficionados, donate via the donation addresses included in the "Support Needed" section below, and contribute to the future of this project by calling out issues, requesting new features, and submitting pull requests to improve the app.
+![preview](https://raw.githubusercontent.com/mifunetoshiro/crypto-whale-watching-app/master/screenshots/preview.png)
+
+Welcome! This is a Python-based Dash app meant to track whale activity in buy / sell walls on crypto-currency exchanges (presently just operational for Coinbase Pro, but more exchanges to come). This document aims to explain the purpose, functionality, and future of this project. Please do share this with your fellow coders / traders / crypto-aficionados, donate via the donation addresses included in the "Support Needed" section below, and contribute to the future of this project by calling out issues, requesting new features, and submitting pull requests to improve the app.
 
 If you want to use a hosted version of the app, **[check out this link here](http://whales.cracklord.com/)** which has been graciously hosted by a member of the Ethereum community while we raise money via donations to migrate to AWS. If for any reason the page does not load properly, feel free to let us know via an issue, but more than likely it is because we are updating to the newest version of the codebase or performing maintenance.
 
 
 ## What's the point of this app?
 
-Presently, GDAX allows users to see the buy and sell limit order volume via the "depth chart" shown below. 
+Presently, Coinbase Pro allows users to see the buy and sell limit order volume via the "depth chart" shown below. 
 
 <img src="https://raw.githubusercontent.com/pmaji/eth_python_tracker/master/screenshots/gdax_depth_chart.JPG" width="700" height="300">
 
@@ -34,7 +36,7 @@ While these two may seem different, their market impacts are often comparable. I
 
 > Imagine that you are looking to understand if there is any whale activity at your local coffee shop (I know this is silly but I promise it is a good example; stay with me here). You could sit near the ordering area and write down each individual order. If someone comes along and orders 100 lattes, that would get your attention--you have spotted a whale! What if, however, someone was ordering 5 lattes, and then getting in the back of the line again, and ordering another 5 lattes, repeating this until they had purchased a total of 100 lattes? Both of these individuals had a whale-like impact on market movement, but if all you care about is the size of each individual order, you will miss out on the sneaky whales that may be splitting their orders across a ladder of price-points.
 
-> Given that GDAX's API doesn't display ETH addresses (only unique order IDs), we cannot say with 100% certainty that what looks like a "ladder price-point whale" is in fact a unitary actor. We have to make some assumptions. To continue the coffee shop metaphor, we aren't able to actually look at the people in line for coffee; instead, we have a blindfold on and are jotting down what we hear the barista say. We hear "1 order for 5 lattes" once and write it down, but if we hear "1 order for 5 lattes" 100 different times in close succession, then we can make the safe assumption that we are dealing with a whale, as this is analogous to seeing 100 orders for 10 ETH stacked in a ladder of pricepoints in close succesion on GDAX. 
+> Given that Coinbase Pro's API doesn't display ETH addresses (only unique order IDs), we cannot say with 100% certainty that what looks like a "ladder price-point whale" is in fact a unitary actor. We have to make some assumptions. To continue the coffee shop metaphor, we aren't able to actually look at the people in line for coffee; instead, we have a blindfold on and are jotting down what we hear the barista say. We hear "1 order for 5 lattes" once and write it down, but if we hear "1 order for 5 lattes" 100 different times in close succession, then we can make the safe assumption that we are dealing with a whale, as this is analogous to seeing 100 orders for 10 ETH stacked in a ladder of pricepoints in close succesion on Coinbase Pro. 
 
 As can be seen from the UI screenshot below, for each currency pairing the user can easily examine the most obvious whales hiding amongst the walls. The algorithm used displays only those orders that make up >= 1% of the volume of the portion of the order book shown in the visualization (which is presently +/-5% from present market price). This methodology makes our analysis robust both in times of price stability--when there is both resistance and support similar in magnitude--as well as during times of large price fluctuation--when there may be very little support or very little resistance. Thanks to the creative coloring algorithm behind the visualization, the brightest colors are those most likely to be whales. The colors become progressively darker as the number of distinct orders at a pricepoint increases, allowing for easy visual identification of whales in the market.
 
@@ -97,11 +99,3 @@ While this project has grown in popularity a great deal as of late, there is sti
      1. If you have coding experience, check out the code and issues tab and see if you can help with anything or propose new additions.
      
      2. If you want new features integrated or have any other ideas, open a new issue and I'll address them ASAP.
-
-
-
-
-
-
-
-
