@@ -1,5 +1,3 @@
-# Don't forget, if you find this useful please send ETH donations to: 0xDB63E1e60e644cE55563fB62f9F2Fc97B751bc49
-
 # modules
 
 # dash-related libraries
@@ -25,11 +23,10 @@ from queue import Queue
 # custom library
 from gdax_book import GDaxBook
 
-# creating variables to reduce hard-coding later on / facilitate later parameterization
+# creating variables to facilitate later parameterization
 serverPort = 8050
 clientRefresh = 1
 desiredPairRefresh = 10000  # (in ms) The lower it is, the better is it regarding speed of at least some pairs, the higher it is, the less cpu load it takes.
-# js_extern = "https://rawgit.com/theimo1221/eth_python_tracker/patch-7/main.js" # just needed during development replace later
 js_extern = "https://cdn.rawgit.com/pmaji/crypto-whale-watching-app/master/main.js"
 noDouble = True  # if activatet each order is in case of beeing part of a ladder just shown once (just as a bubble, not as a ladder)
 SYMBOLS = {"USD": "$", "BTC": "₿", "EUR": "€", "GBP": "£"} # used for the tooltip
@@ -84,7 +81,7 @@ class Pair:
 
 
 PAIRS = []  # Array containing all pairs
-E_GDAX = Exchange("GDAX", ["ETH-USD", "ETH-EUR", "ETH-BTC", "BTC-USD"], 0)
+E_GDAX = Exchange("Coinbase Pro", ["ETH-USD", "ETH-EUR", "ETH-BTC", "BTC-USD", "BTC-EUR"], 0)
 for ticker in E_GDAX.ticker:
     cObj = Pair(E_GDAX.name, ticker)
     PAIRS.append(cObj)
@@ -116,7 +113,7 @@ def calc_data(pair, range=0.05, maxSize=32, minVolumePerc=0.01, ob_points=60):
     exchange = pair.exchange
     combined = exchange + ticker
     if pair.exchange == E_GDAX.name:
-        # order_book = gdax.PublicClient().get_product_order_book(ticker, level=3)
+        # order_book = cbpro.PublicClient().get_product_order_book(ticker, level=3)
         order_book = pair.ob_Inst.get_current_book()
         pair.usedStamp = getStamp()
         ask_tbl = pd.DataFrame(data=order_book['asks'], columns=[
@@ -356,23 +353,19 @@ app.scripts.append_script({"external_url": js_extern})
 # static_content_before contains all the info we want in our headers that won't be dynamic (for now)
 static_content_before = [
     html.H2('CRYPTO WHALE WATCHING APP'),
-    html.H3('Donations greatly appreciated; will go towards hosting / development'),
-    html.P(['ETH Donations Address: 0xDB63E1e60e644cE55563fB62f9F2Fc97B751bc49', html.Br(),
-            'BTC Donations Address: 1BtEBzRxymw6NvtCfoGheLuh2E2iS5mPuo', html.Br(),
-            'LTC Donations Address: LWaLxgaBveWATqwsYpYfoAqiG2tb2o5awM'
-            ]),
-    html.H3(html.A('GitHub Link (Click to support us by giving a star; request new features via "issues" tab)',
+    html.H3(html.A('GitHub Link Here (Consider supporting us by giving a star; request new features via "issues" tab)',
                    href="https://github.com/pmaji/eth_python_tracker")),
-    html.H3(
-        'Legend: Bright colored mark = likely WHALE '
-        '(high volume price point via 1 unique order, or many identical medium-sized orders in a ladder). '
-        'Bubbles get darker as the number of unique orders increases. '
-        'Hover over bubbles for more info. Volume (x-axis) on log-scale. '
-        'Click "Freeze all" button to halt refresh, '
-        'and hide/show buttons to pick which currency pairs to display. '
-        'Only displays orders greater than or equal to 1% of the volume of the portion of the order book displayed. '
-        'If annotations overlap or bubbles cluster click "Freeze all" and then zoom in on the area of interest.'
-        ' See GitHub for further details.')
+    html.P([
+        "Legend: Bright colored mark = likely WHALE ",
+        "(high volume price point via 1 unique order, or many identical medium-sized orders in a ladder). ", html.Br(),
+        "Bubbles get darker as the number of unique orders increases. " , html.Br(),
+        "Hover over bubbles for more info. Note: volume (x-axis) on log-scale. " , html.Br(),
+        "Click 'Freeze all' button to halt refresh, "
+        "and hide/show buttons to pick which currency pairs to display. " , html.Br(),
+        "Only displays orders >= 1% of the volume of the portion of the order book displayed. ", html.Br(),
+        "If annotations overlap or bubbles cluster, click 'Freeze all' and then zoom in on the area of interest.", html.Br(),
+        "See GitHub link above for further details."
+        ])
 ]
 cCache = []
 for pair in PAIRS:
@@ -420,8 +413,8 @@ def prepare_data(ticker, exchange):
     market_price = marketPrice[combined]
 
     td = datetime.now() - timedelta(days=1)
-    phr = gdax.PublicClient().get_product_historic_rates(ticker, start=td.isoformat(), end=datetime.now().isoformat(), granularity=300)
-    yday_price = phr[288][4] #288 is exactly 24h ago, 12 is 1 hour ago
+    phr = cbpro.PublicClient().get_product_historic_rates(ticker, start=td.isoformat(), end=datetime.now().isoformat(), granularity=300)
+    yday_price = phr[275][4] #275 = 1 day ago, 12 is 1 hour ago
     prct_day = ((market_price - yday_price) / yday_price) * 100
     onehourago_price = phr[12][4]
     prct_hour = ((market_price - onehourago_price) / onehourago_price) * 100
